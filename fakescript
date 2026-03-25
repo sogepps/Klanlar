@@ -1,0 +1,195 @@
+// ==UserScript==
+// @name         TW Saldırı Paneli FULL HIZLI
+// @match        https://tr100.klanlar.org/game.php*
+// @grant        none
+// @run-at       document-end
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    const KEY = "twBot_full_fast";
+
+    // default state
+    let state = JSON.parse(localStorage.getItem(KEY)) || {
+        coords: [],
+        units: {},
+        round: 1,
+        current: 0,
+        active: false
+    };
+
+    const units = [
+        { key: "spear", name: "Mızrakçı" },
+        { key: "sword", name: "Kılıç Ustası" },
+        { key: "axe", name: "Baltacı" },
+        { key: "spy", name: "Casus" },
+        { key: "light", name: "Hafif Atlı" },
+        { key: "heavy", name: "Ağır Atlı" },
+        { key: "ram", name: "Koçbaşı" },
+        { key: "catapult", name: "Mancınık" },
+        { key: "knight", name: "Şövalye" },
+        { key: "snob", name: "Misyoner" }
+    ];
+
+    function save() {
+        localStorage.setItem(KEY, JSON.stringify(state));
+    }
+
+    // PANEL OLUŞTUR
+    function createPanel() {
+        if (document.getElementById("twPanel")) return;
+
+        let div = document.createElement("div");
+        div.id = "twPanel";
+        div.style = `
+            position:fixed;
+            top:50px;
+            right:20px;
+            background:#111;
+            color:#fff;
+            padding:10px;
+            z-index:99999;
+            width:260px;
+            font-size:12px;
+            border:1px solid #555;
+        `;
+
+        let html = "";
+        units.forEach(u => {
+            html += `
+                <div style="display:flex;margin-bottom:4px;">
+                    <input type="checkbox" id="chk_${u.key}">
+                    <input type="number" id="val_${u.key}" value="0" style="width:60px;margin-left:5px;">
+                    <span style="margin-left:5px;">${u.name}</span>
+                </div>
+            `;
+        });
+
+        div.innerHTML = `
+            <b>⚔️ Hızlı Saldırı Paneli</b><br><br>
+            Koordinatlar:<br>
+            <textarea id="coords" style="width:100%;height:60px;"></textarea><br><br>
+            ${html}
+            <br>Tur:<br>
+            <input id="round" type="number" value="1" style="width:100%"><br><br>
+            <button id="start">Başlat</button>
+            <button id="stop">Durdur ve Sıfırla</button>
+        `;
+
+        document.body.appendChild(div);
+
+        // BAŞLAT
+        document.getElementById("start").onclick = () => {
+            state.coords = document.getElementById("coords").value.trim().split(/\s+/);
+            state.units = {};
+
+            units.forEach(u => {
+                let chk = document.getElementById(`chk_${u.key}`);
+                let val = document.getElementById(`val_${u.key}`);
+                if (chk.checked && parseInt(val.value) > 0) {
+                    state.units[u.key] = parseInt(val.value);
+                }
+            });
+
+            state.round = parseInt(document.getElementById("round").value);
+            state.current = 0;
+            state.active = true;
+
+            save();
+            run();
+        };
+
+        // DURDUR VE SIFIRLA
+        document.getElementById("stop").onclick = () => {
+            state = {
+                coords: [],
+                units: {},
+                round: 1,
+                current: 0,
+                active: false
+            };
+            save();
+
+            document.getElementById("coords").value = "";
+            document.getElementById("round").value = 1;
+            units.forEach(u => {
+                document.getElementById(`chk_${u.key}`).checked = false;
+                document.getElementById(`val_${u.key}`).value = 0;
+            });
+
+            alert("Bot tamamen durduruldu ve sıfırlandı.");
+        };
+    }
+
+    // SAYFAYA ASKER + KOORDİNAT DOLDUR (HIZLI)
+    function fillPage() {
+        let coord = state.coords[state.current];
+
+        if (!coord) {
+            state.round--;
+            if (state.round <= 0) {
+                state.active = false;
+                save();
+                alert("Tüm saldırılar tamamlandı!");
+                return;
+            }
+            state.current = 0;
+            coord = state.coords[state.current];
+        }
+
+        // asker alanlarını temizle
+        units.forEach(u => {
+            let el = document.querySelector(`#unit_input_${u.key}`);
+            if (el) el.value = "";
+        });
+
+        // askerleri doldur
+        for (let u in state.units) {
+            let el = document.querySelector(`#unit_input_${u}`);
+            if (el) el.value = state.units[u];
+        }
+
+        // koordinat yaz
+        let target = document.querySelector(".target-input-field");
+        if (target) target.value = coord;
+
+        save();
+
+        // hızlı saldırı: bekleme süresini minimum yaptık
+        setTimeout(() => {
+            document.querySelector("#target_attack")?.click();
+        }, 200); // normal 800ms yerine 200ms → hızlı
+    }
+
+    // CONFIRM SAYFASI (HIZLI)
+    function confirmPage() {
+        setTimeout(() => {
+            let btn = document.querySelector("#troop_confirm_submit");
+            if (btn) btn.click();
+        }, 200); // hızlı confirm
+
+        state.current++;
+        save();
+    }
+
+    function run() {
+        if (!state.active) return;
+
+        if (location.href.includes("try=confirm")) {
+            confirmPage();
+        } else if (location.href.includes("screen=place")) {
+            fillPage();
+        }
+    }
+
+    // INIT
+    window.addEventListener("load", () => {
+        createPanel();
+
+        if (state.active) {
+            setTimeout(run, 500); // sayfa yüklenince hızlı başla
+        }
+    });
+
+})();
